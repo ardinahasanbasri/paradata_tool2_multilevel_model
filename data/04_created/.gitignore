@@ -1,0 +1,8 @@
+# cleaned paradata data
+*.csv
+
+# constructed regressors
+*.dta
+
+# html report output
+*.html

@@ -1,0 +1,6 @@
+# quesionnaire JSON file
+*.json
+
+# data saved to disk
+*.Rds
+*.rds

@@ -1,0 +1,8 @@
+# zip files
+*.zip
+
+# unzipped paradata in main or subdirectory
+*.tab
+/*.tab
+*.do
+/*.do
