@@ -3,8 +3,6 @@
 setwd(here::here("data", "04_created")) 
 data <- data.table::fread("paradata_clean.csv") # Get clean data. 
 
-# Show only 4 numbers, the total and share of each component instead of the total. 
-
 #-------------------------------------------------------------
 # Step 1: Clean "responsible" to get interviewer identifier. 
 #-------------------------------------------------------------

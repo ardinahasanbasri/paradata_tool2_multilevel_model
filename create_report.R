@@ -9,6 +9,8 @@
 # 1) Load Required Packages
 # -----------------------------------------------------------------------------
 
+setwd(here::here()) 
+
 # load packages and functions
 source("R/0_load_requirements.R")
 
@@ -16,9 +18,29 @@ source("R/0_load_requirements.R")
 # 2) Create Household-Level Module Dataset 
 # -----------------------------------------------------------------------------
 
+data <- data.table::fread("data/04_created/paradata_clean.csv") # Get clean data. 
+
+# List sections that are household modules. 
+unique(data$section[data$ind_mod==0])
+
+# Delete modules that you would not like to include in the results. 
+data <- data[section!="section name excluded", ]
+
+source("1_multilevel_hh_data.R")
+
 # -----------------------------------------------------------------------------
 # 3) Create Individual-Level Module Dataset
 # -----------------------------------------------------------------------------
+
+data <- data.table::fread("paradata_clean.csv") # Get clean data. 
+
+# List sections that are household modules. 
+unique(data$section[data$ind_mod==1])
+
+# Delete modules that you would not like to include in the results. 
+data <- data[section!="18. Apartment", ]
+
+source("2_multilevel_ind_data.R")
 
 # -----------------------------------------------------------------------------
 # 4) Output Report

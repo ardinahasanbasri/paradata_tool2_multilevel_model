@@ -9,7 +9,37 @@ format:
     toc-location: left
 ---
 
-## Intercept-Only Multilevel Model
+# LSMS Paradata Tools: Basic Multilevel Model
+
+
+## Overview 
+
+Often survey practitioners would like to understand how much do variation in interviewers contribute to the variation of interview length. One could ask the same thing about the variation in enumeration area. If an "interviewer effect is large" for a specific module, this could indicate that additional training may be needed for the module. An intercept-only multi-level model is used here to provide a preliminary ranking of interviewer effects. 
+
+## Intercept-Only Multilevel Model 
+
+We run a cross-cluster multilevel model with two-levels: at the enumeration area and interviewer. A household from an enumeration area is cross-assigned to an interviewer. This means that an area can have two different interviewers assigned to the area. The figure below provides an example of a cross assignment.
+
+We first show an intercept-only multilevel model for a household module.  
+
+$$ \ln(y_{hjk}) = \beta + u_j + u_k + e_{hjk} $$
+
+where $y_{hjk}$ is the module duration of interest for household $h$ living in area $k$ and interviewer by interviewer $j$. The model includes two types of random effects: $u_j$ the interviewer random effect and $u_k$ the enumeration area random effect. Lastly, $e_{hjk}$ is the error term. We assume all random effects and the residual term are distributed normally and have a constant variance. We focus on log transformation of the interview length which worked better to fit the normality assumption on the residuals of the model. More specifically, $ u_j \sim N(0, \sigma_j^2) , u_k \sim N(0, \sigma_k^2), u_e \sim N(0, \sigma_e^2) $.
+
+Multilevel models allow us to calculate the interclass correlation (ICC). The ICC describes how much of the variation in interview length is attributed to the grouping structure for the module: the same enumeration area group and the same interviewer group. One could also think of the ICC as the variance of the intercept, which in our case can be further decomposed into variation due to the enumeration area, the household, and the interviewer components. A large variance reflects a large variation in interview length while controlling for other factors. A large interviewer component for the ICC indicates that the distribution of interview slope across interviewers is quite spread out relative to other variance components. Thus, we use this measure to denote the interviewer effects.
+
+$$ ICC_{interviewer} = \frac{\sigma_j^2}{\sigma_k^2 + \sigma_e^2 + \sigma_j^2} $$
+
+For individual-level modules, we added a household random effect variable, $u_h$, where $u_h \sim N(0, \sigma_h^2)$. The interviewer ICC thus becomes: 
+
+$$ ICC_{interviewer} = \frac{\sigma_j^2}{\sigma_h^2 + \sigma_k^2 + \sigma_e^2 + \sigma_j^2} $$
+
+
+For more information on the model construction, please see _____ and _____ for reference. 
+
+## Household Modules Results  
+
+The table below shows the total variance (the demonimator of the ICC interviewer), the residual variance $\sigma_e^2$, and ICC interviewer. One can rank modules based on these numbers. 
 
 ```{r}
 #| echo: false
@@ -20,85 +50,9 @@ library(dplyr)
 # Directory of Dataset # 
 
 setwd(here::here("data", "04_created")) 
-data <- data.table::fread("paradata_clean.csv") # Get clean data. 
-
-#-------------------------------------------------------------
-# Step 1: Clean "responsible" to get interviewer identifier. 
-#-------------------------------------------------------------
-
-unique(data[,responsible])
-
-data <- data[responsible!="", ] # Drop responsible that is missing, can also clean other responsible values if needed. 
-
-# Some responsible are missing, but these are only for the event "AnsweredRemoved" and can be ignored. 
-
-#------------------------------------------------------------------------------------
-# Step 2: Calculate time per per-person/household module and replace
-#------------------------------------------------------------------------------------
-
-# Aggregate the data into per-person module time. 
-
-data <- data[ ,list(tot_minutes=sum(elapsed_min)), by=c("interview__id", "section", "responsible", "person_ID")] 
-
-#-------------------------------------------
-# Step 3: Add controls from Stata datafiles 
-#-------------------------------------------
-
-# In the 03_microdata folder, create interview_id_merge.dta
-# The file consist of interview__id and interview__key data that merges paradata with survey data
-
-setwd(here::here("data", "03_microdata")) 
-ID <- haven::read_dta("interview_id_merge.dta")
-
-# Now add individual and household characteristics. 
-
-data_add    <- data.table::fread("covar_ind.csv")
-data_add_hh <- data.table::fread("covar_hh.csv")
-
-#----------------------------------------------------------------------
-# This function checks for column present in the datasets that's added
-
-check_column_present <- function(df, colname) {
-  if (!colname %in% names(data)) {
-    cli::cli_abort(
-      message = c(
-        "Expected variable missing from data.",
-        "x" = "Cannot find {.var {colname}} in dataset."
-      ),
-      call = rlang::caller_env()
-    )
-  } 
-}
-#------------------------------------------------------------------------
-
-# Before merging check that required columns are present
-# ID variables
-check_column_present(df = ID, colname = "interview__id")
-check_column_present(df = data_add_hh, colname = "person_ID")
-# outcome variable
-check_column_present(df = data, colname = "tot_minutes")
-# attribute variables
-# check_column_present(df = ID, colname = "area") # The column is in the dataset, not sure what is going on here. 
-check_column_present(df = data, colname = "responsible")
-
-data <- merge(data, ID)
-data <- merge(data, data_add, by=c("interview__key", "person_ID")) # did not include #x.all=TRUE since want to compare different models with the same obs. Reduction of obs is quite small. 
-data <- merge(data, data_add_hh, by=c("interview__key")) 
-
-#------------------------------------------------------------------------------------
-# Step 4: Conduct multi-level model with lmer command
-#------------------------------------------------------------------------------------
-
-data[, tot_minutes:=scale(tot_minutes)] # Normalized total minutes
-
-data[, unique_id := .GRP, by=.(interview__id, person_ID)] # Create unique household and ind id
+data <- data.table::fread("data_hh_sections.csv") # Get clean data. 
 
 section_list <- unique(data$section)
-
-# Delete certain sections where you don't want the model to run.  
-# Apartment section has too few obs and thus have to be deleted. Position 13 is deleted and new list is saved.    
-
-section_list <- section_list[-13] 
 
 model_name  <-section_list
 model_label <-section_list
@@ -108,8 +62,8 @@ model_label <-section_list
 
 # Run for each module: unique(data$module)
 for (x in 1:length(section_list)) {
-Model <- lme4::lmer(tot_minutes ~ 1 + (1|responsible)  + (1|area), REML=FALSE, data=data[section==section_list[x],])
-assign(model_name[x], Model)
+  Model <- lme4::lmer(tot_minutes ~ 1 + (1|responsible)  + (1|area), REML=FALSE, data=data[section==section_list[x],])
+  assign(model_name[x], Model)
 }
 rm(Model)
 
@@ -188,3 +142,4 @@ stats_basic2 %>%
 
 ```
 
+## Individual Modules Results 
