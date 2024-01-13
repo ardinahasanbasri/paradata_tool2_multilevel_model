@@ -65,8 +65,6 @@ data <- merge(data, data_add_hh, by=c("interview__key"))
 # Step 4: Conduct multi-level model with lmer command
 #------------------------------------------------------------------------------------
 
-data[, tot_minutes:=scale(tot_minutes)] # Normalized total minutes
-
 data[, unique_id := .GRP, by=.(interview__id, person_ID)] # Create unique household and ind id
 
 # Save dataset ready for use. 

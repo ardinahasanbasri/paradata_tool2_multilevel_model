@@ -24,7 +24,7 @@ We first show an intercept-only multilevel model for a household module.
 
 $$ \ln(y_{hjk}) = \beta + u_j + u_k + e_{hjk} $$
 
-where $y_{hjk}$ is the module duration of interest for household $h$ living in area $k$ and interviewer by interviewer $j$. The model includes two types of random effects: $u_j$ the interviewer random effect and $u_k$ the enumeration area random effect. Lastly, $e_{hjk}$ is the error term. We assume all random effects and the residual term are distributed normally and have a constant variance. We focus on log transformation of the interview length which worked better to fit the normality assumption on the residuals of the model. More specifically, $ u_j \sim N(0, \sigma_j^2) , u_k \sim N(0, \sigma_k^2), u_e \sim N(0, \sigma_e^2) $.
+where $y_{hjk}$ is the module duration of interest for household $h$ living in area $k$ and interviewer by interviewer $j$. The model includes two types of random effects: $u_j$ the interviewer random effect and $u_k$ the enumeration area random effect. Lastly, $e_{hjk}$ is the error term. We assume all random effects and the residual term are distributed normally and have a constant variance. We focus on log transformation of the interview length which worked better to fit the normality assumption on the residuals of the model. More specifically, $u_j \sim N(0, \sigma_j^2) , u_k \sim N(0, \sigma_k^2), u_e \sim N(0, \sigma_e^2)$.
 
 Multilevel models allow us to calculate the interclass correlation (ICC). The ICC describes how much of the variation in interview length is attributed to the grouping structure for the module: the same enumeration area group and the same interviewer group. One could also think of the ICC as the variance of the intercept, which in our case can be further decomposed into variation due to the enumeration area, the household, and the interviewer components. A large variance reflects a large variation in interview length while controlling for other factors. A large interviewer component for the ICC indicates that the distribution of interview slope across interviewers is quite spread out relative to other variance components. Thus, we use this measure to denote the interviewer effects.
 
@@ -39,7 +39,7 @@ For more information on the model construction, please see _____ and _____ for r
 
 ## Household Modules Results  
 
-The table below shows the total variance (the demonimator of the ICC interviewer), the residual variance $\sigma_e^2$, and ICC interviewer. One can rank modules based on these numbers. 
+The table below shows the total variance (the denomimator of the ICC interviewer), the residual variance $\sigma_e^2$, and ICC interviewer. One can rank modules based on these numbers. 
 
 ```{r}
 #| echo: false
@@ -57,10 +57,9 @@ section_list <- unique(data$section)
 model_name  <-section_list
 model_label <-section_list
 
-#model_label  <- c("ind_available", "edu", "internal migration", "international migration", "livestock", "durables", 
-#                   "mobile phones", "fin assets", "health", "employment", "ind land", "time use")
+# Run for each module: 
+data[, tot_minutes:=log(tot_minutes)]
 
-# Run for each module: unique(data$module)
 for (x in 1:length(section_list)) {
   Model <- lme4::lmer(tot_minutes ~ 1 + (1|responsible)  + (1|area), REML=FALSE, data=data[section==section_list[x],])
   assign(model_name[x], Model)
@@ -97,6 +96,8 @@ stats_basic2["ICC area"]  <- stats_basic2["area"]/(stats_basic2["responsible"] +
 stats_basic2["ICC responsible"]  <- stats_basic2["responsible"]/(stats_basic2["responsible"] + stats_basic2["area"]) 
 
 stats_basic2 <- mutate_if(stats_basic2, is.numeric, round, digits = 3)
+stats_basic2 <- stats_basic2[c("Sum of Variances", "residual", "ICC responsible")]
+colnames(stats_basic2) <- c("Sum of Variances", "Variance of Residual", "ICC Interviewer")
 
 ```
 
@@ -121,17 +122,25 @@ stats_basic2 %>%
       format = reactable::colFormat(digits = 2)
     ),
     columns = list(
-      'total var' = reactable::colDef(
-        name="total var", 
+      'Sum of Variances' = reactable::colDef(
+        name="Sum of Variances", 
         cell =  reactablefmtr::data_bars(
-          fill_color = "#FDB833", 
+          fill_color = "#577399", 
           stats_basic2, 
           text_position = "outside-base", 
           round_edges = TRUE,
           number_fmt = scales::number_format(accuracy = 0.1)
         ),
-        defaultSortOrder = "desc"
-      )), 
+        defaultSortOrder = "desc"),
+          'ICC Interviewer' = reactable::colDef(
+        name="ICC Interviewer", 
+        cell =  reactablefmtr::data_bars(
+          fill_color = "#bdd5ea", 
+          stats_basic2, 
+          text_position = "outside-base", 
+          round_edges = TRUE,
+          number_fmt = scales::number_format(accuracy = 0.1)
+        ))),
     searchable = TRUE,
     striped = TRUE,
     showSortable = TRUE,
@@ -143,3 +152,202 @@ stats_basic2 %>%
 ```
 
 ## Individual Modules Results 
+
+The table below shows the total variance (the denomimator of the ICC interviewer), the residual variance $\sigma_e^2$, and ICC interviewer. One can rank modules based on these numbers. Individual modules are run through models with household random effects. 
+
+```{r}
+#| echo: false
+#| output: false
+
+library(dplyr)
+
+# Directory of Dataset # 
+
+setwd(here::here("data", "04_created")) 
+data <- data.table::fread("data_ind_sections.csv") # Get clean data. 
+
+section_list <- unique(data$section)
+
+model_name  <-section_list
+model_label <-section_list
+
+# Run for each module: 
+data[, tot_minutes:=log(tot_minutes)]
+
+for (x in 1:length(section_list)) {
+  Model <- lme4::lmer(tot_minutes ~ 1 + (1|responsible)  + (1|area) + (1|interview__key), data=data[section==section_list[x],])
+  assign(model_name[x], Model)
+}
+rm(Model)
+
+#-----------------------------------------------------------------
+# Step 5: Saving important statistics and make accessible outputs 
+#-----------------------------------------------------------------
+
+stats_basic <- data.frame(c("household", "area", "responsible", "residual", "household/total", "area/total", "responsible/total"))
+
+# Get statistics of remaining models.  
+
+for (x in model_name) {
+  var   <- data.frame(lme4::VarCorr(get(x)))
+  icc   <- performance::icc(get(x), by_group = TRUE)
+  aux   <- data.frame(mapply(c, var[c(1,4)], icc))
+  stats_basic <- cbind(stats_basic, aux[2])
+}
+names(stats_basic) <- c("statistics", model_label)
+
+#-----------------------------------------------------------------
+# Step 6: Ready to Analyze Results 
+#-----------------------------------------------------------------
+
+# Reshape the data and make numeric. 
+
+# For basic model
+stats_basic2 <- setNames(data.frame(t(stats_basic[,-1])), stats_basic[,1])
+stats_basic2 <- mutate_at(stats_basic2, 1:5, as.numeric)
+stats_basic2["Sum of Variances"] <- stats_basic2["area"] + stats_basic2["responsible"] + stats_basic2["residual"] 
+stats_basic2["ICC area"]  <- stats_basic2["area"]/(stats_basic2["responsible"] + stats_basic2["area"]) 
+stats_basic2["ICC responsible"]  <- stats_basic2["responsible"]/(stats_basic2["responsible"] + stats_basic2["area"]) 
+
+stats_basic2 <- mutate_if(stats_basic2, is.numeric, round, digits = 3)
+stats_basic2 <- mutate_if(stats_basic2, is.numeric, round, digits = 3)
+stats_basic2 <- stats_basic2[c("Sum of Variances", "residual", "ICC responsible")]
+colnames(stats_basic2) <- c("Sum of Variances", "Variance of Residual", "ICC Interviewer")
+
+
+```
+
+```{r}
+#| echo: false
+
+reactable_theme <- reactable::reactableTheme(
+  borderColor = "#dfe2e5",
+  stripedColor = "#f6f8fa",
+  highlightColor = "#B0D4F3",
+  cellPadding = "8px 12px",
+  style = list(
+    fontFamily = "-apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial, sans-serif"
+  ),
+  searchInputStyle = list(width = "100%")
+)
+
+stats_basic2 %>%
+  reactable::reactable(
+    defaultSorted = c("Sum of Variances"),
+    defaultColDef = reactable::colDef(
+      format = reactable::colFormat(digits = 2)
+    ),
+    columns = list(
+      'Sum of Variances' = reactable::colDef(
+        name="Sum of Variances", 
+        cell =  reactablefmtr::data_bars(
+          fill_color = "#577399", 
+          stats_basic2, 
+          text_position = "outside-base", 
+          round_edges = TRUE,
+          number_fmt = scales::number_format(accuracy = 0.1)
+        ),
+        defaultSortOrder = "desc"),
+      'ICC Interviewer' = reactable::colDef(
+        name="ICC Interviewer", 
+        cell =  reactablefmtr::data_bars(
+          fill_color = "#bdd5ea", 
+          stats_basic2, 
+          text_position = "outside-base", 
+          round_edges = TRUE,
+          number_fmt = scales::number_format(accuracy = 0.1)
+        ),
+      )),
+    searchable = TRUE,
+    striped = TRUE,
+    showSortable = TRUE,
+    highlight = TRUE,
+    bordered = TRUE,
+    theme = reactable_theme
+  )
+```
+
+## Model Fit: Household  
+
+## Model Fit: Individual   
+
+```{r}
+#| echo: false
+plot(`12. Education and Literacy`)
+
+#require(gridExtra)
+#fig1_all <- grid.arrange(plot(Model_s01), plot(Model_s02), plot(Model_s03), plot(Model_s04),
+#                         plot(Model_s05), plot(Model_s06), plot(Model_s07), plot(Model_s08),
+#                         plot(Model_s09), plot(Model_s10), plot(Model_s11), 
+#                         ncol = 4, nrow = 3)
+
+#ggsave("Graphs and Tables/Cambodia_residuals_hh_logs.tiff", fig1_all, height=12, width=12, units="in")
+
+```
+
+## Interviewer Coefficient: Household  
+
+## Interviewer Coefficient: Individual   
+
+Code ignore for now, incorporate later. 
+
+res_a   <- ggplot(data.frame(residual = resid(Model_a)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Cover")
+res_b   <- ggplot(data.frame(residual = resid(Model_b)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Household Roster")
+res_b1b <- ggplot(data.frame(residual = resid(Model_b1b)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Land Roster")
+res_h   <- ggplot(data.frame(residual = resid(Model_h)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Food Security")
+res_i   <- ggplot(data.frame(residual = resid(Model_i)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Housing")
+res_j <- ggplot(data.frame(residual = resid(Model_j)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Food Consumption")
+res_k <- ggplot(data.frame(residual = resid(Model_k)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Non-Food Consumption Weekly")
+res_l <- ggplot(data.frame(residual = resid(Model_l)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Non-Food Consumption Annual")
+res_m <- ggplot(data.frame(residual = resid(Model_m)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Household Assets")
+res_n <- ggplot(data.frame(residual = resid(Model_n)), aes(x=residual)) + geom_histogram() + theme_minimal() + ggtitle("Non-Farm Enterprise")
+
+fig1_referee <- grid.arrange(plot(Model_a, main = "Cover"), res_a,
+                             plot(Model_b, main = "Household Roster"), res_b,
+                             plot(Model_b1b, main = "Land Roster"), res_b1b,
+                             plot(Model_h, main = "Food Security"), res_h,
+                             plot(Model_i, main = "Housing"), res_i,
+                             plot(Model_j, main = "Food Consumption"), res_j,
+                             plot(Model_k, main = "Non-Food Consumption Weekly"), res_k,
+                             plot(Model_l, main = "Non-Food Consumption Annual"), res_l,
+                             plot(Model_m, main = "Household Assets"), res_m,
+                             plot(Model_n, main = "Non-Farm Enterprise"), res_n,
+                             ncol = 4, nrow = 5)
+
+ggsave("Graphs and Tables/Tanzania_residuals_hh_log_paper.tiff", fig1_referee, height=12, width=15, units="in")
+
+library(hamlet)
+
+int_a <- ggplot(data.frame(x=ranef(Model_a)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Cover")
+int_b <- ggplot(data.frame(x=ranef(Model_b)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Household Roster")
+int_b1b <- ggplot(data.frame(x=ranef(Model_b1b)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Land Roster")
+int_h <- ggplot(data.frame(x=ranef(Model_h)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Food Security")
+int_i <- ggplot(data.frame(x=ranef(Model_i)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Housing")
+int_j <- ggplot(data.frame(x=ranef(Model_j)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Food Consumption")
+int_k <- ggplot(data.frame(x=ranef(Model_k)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Non-Food Consumption Weekly")
+int_l <- ggplot(data.frame(x=ranef(Model_l)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Non-Food Consumption Annual")
+int_m <- ggplot(data.frame(x=ranef(Model_m)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Household Assets")
+int_n <- ggplot(data.frame(x=ranef(Model_n)$responsible__name$`(Intercept)`),aes(x)) + geom_density() + theme_minimal() + ggtitle("Non-Farm Enterprise")
+
+fig1_referee2 <- grid.arrange(int_a, int_b, int_b1b, int_h, int_i, int_j, int_k, int_l, int_m, int_n,
+                             ncol = 5, nrow = 2)
+
+ggsave("Graphs and Tables/Tanzania_int_effect_hh_log_paper.tiff", fig1_referee2, height=6, width=15, units="in")
+
+int_a <- ggplot(data.frame(x=ranef(Model_a)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Cover")
+int_b <- ggplot(data.frame(x=ranef(Model_b)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Household Roster")
+int_b1b <- ggplot(data.frame(x=ranef(Model_b1b)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Land Roster")
+int_h <- ggplot(data.frame(x=ranef(Model_h)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Food Security")
+int_i <- ggplot(data.frame(x=ranef(Model_i)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Housing")
+int_j <- ggplot(data.frame(x=ranef(Model_j)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Food Consumption")
+int_k <- ggplot(data.frame(x=ranef(Model_k)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Non-Food Consumption Weekly")
+int_l <- ggplot(data.frame(x=ranef(Model_l)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Non-Food Consumption Annual")
+int_m <- ggplot(data.frame(x=ranef(Model_m)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Household Assets")
+int_n <- ggplot(data.frame(x=ranef(Model_n)$responsible__name$`(Intercept)`),aes(x)) + geom_histogram(color="darkblue", fill="lightblue", bins=7) + theme_minimal() + ggtitle("Non-Farm Enterprise")
+
+fig1_referee2 <- grid.arrange(int_a, int_b, int_b1b, int_h, int_i, int_j, int_k, int_l, int_m, int_n,
+                              ncol = 5, nrow = 2)
+
+ggsave("Graphs and Tables/Tanzania_int_effect_hh_log_paper_hist.tiff", fig1_referee2, height=6, width=15, units="in")
+
+#mem.plotran(Model_a, breaks=7)
