@@ -9,7 +9,7 @@ format:
     toc-location: left
 ---
 
-# LSMS Paradata Tools: Basic Multilevel Model
+# LSMS Paradata Tool: Basic Multilevel Model
 
 
 ## Overview 
@@ -35,7 +35,7 @@ For individual-level modules, we added a household random effect variable, $u_h$
 $$ ICC_{interviewer} = \frac{\sigma_j^2}{\sigma_h^2 + \sigma_k^2 + \sigma_e^2 + \sigma_j^2} $$
 
 
-For more information on the model construction, please see _____ and _____ for reference. 
+For more information on the model construction, please see [Hasanbasri et al. (2014) SJIAOS article](https://content.iospress.com/articles/statistical-journal-of-the-iaos/sji230042) for reference. 
 
 ## Household Modules Results  
 
